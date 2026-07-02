@@ -1,0 +1,13 @@
+services:
+  shadow-agent:
+    build: .
+    image: shadow-agent:latest
+    container_name: shadow-agent-aws 
+    stdin_open: true      # Necesario para input() interactivo
+    tty: true             # Necesario para input() interactivo
+    volumes:
+      # Monta las credenciales AWS de tu máquina al contenedor
+      # Así el perfil bedrock-demo queda disponible sin hardcodear keys
+      - ~/.aws:/root/.aws:ro
+    environment:
+      - AWS_DEFAULT_REGION=us-east-1

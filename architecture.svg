@@ -1,0 +1,83 @@
+<svg viewBox="0 0 1200 640" xmlns="http://www.w3.org/2000/svg" font-family="Arial, sans-serif">
+  <rect width="1200" height="640" fill="#0b0714"/>
+
+  <!-- Title -->
+  <text x="600" y="40" text-anchor="middle" fill="#e9d5ff" font-size="24" font-weight="bold">Shadow Agent — Architecture</text>
+
+  <!-- User -->
+  <rect x="40" y="270" width="140" height="90" rx="10" fill="#1a0d2e" stroke="#a855f7" stroke-width="2"/>
+  <text x="110" y="310" text-anchor="middle" fill="#f5f3ff" font-size="15" font-weight="bold">User</text>
+  <text x="110" y="330" text-anchor="middle" fill="#c4b5fd" font-size="12">Terminal (Tú:)</text>
+
+  <!-- Docker container box -->
+  <rect x="230" y="120" width="330" height="400" rx="12" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="395" y="145" text-anchor="middle" fill="#a855f7" font-size="13" font-weight="bold">Docker Container (shadow-agent)</text>
+
+  <!-- agent.py -->
+  <rect x="270" y="270" width="250" height="90" rx="10" fill="#1a0d2e" stroke="#a855f7" stroke-width="2"/>
+  <text x="395" y="305" text-anchor="middle" fill="#f5f3ff" font-size="15" font-weight="bold">agent.py</text>
+  <text x="395" y="325" text-anchor="middle" fill="#c4b5fd" font-size="12">chat() loop + tool dispatch</text>
+
+  <!-- ~/.aws mount -->
+  <rect x="270" y="170" width="250" height="60" rx="8" fill="#0f0a1f" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="395" y="195" text-anchor="middle" fill="#e9d5ff" font-size="12" font-weight="bold">~/.aws (read-only volume)</text>
+  <text x="395" y="212" text-anchor="middle" fill="#a78bfa" font-size="11">profile: bedrock-demo</text>
+
+  <!-- Arrow user -> agent -->
+  <line x1="180" y1="315" x2="270" y2="315" stroke="#a855f7" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Arrow mount -> agent -->
+  <line x1="395" y1="230" x2="395" y2="270" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Bedrock -->
+  <rect x="640" y="120" width="270" height="110" rx="10" fill="#1a0d2e" stroke="#a855f7" stroke-width="2"/>
+  <text x="775" y="150" text-anchor="middle" fill="#f5f3ff" font-size="15" font-weight="bold">Amazon Bedrock</text>
+  <text x="775" y="172" text-anchor="middle" fill="#c4b5fd" font-size="12">Converse API</text>
+  <text x="775" y="192" text-anchor="middle" fill="#c4b5fd" font-size="12">Claude Haiku 4.5</text>
+  <text x="775" y="212" text-anchor="middle" fill="#7c3aed" font-size="11">tool_use / final text</text>
+
+  <!-- Arrow agent -> bedrock -->
+  <path d="M 520 290 C 600 290, 620 260, 700 230" stroke="#a855f7" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="600" y="270" fill="#a78bfa" font-size="11">converse()</text>
+
+  <!-- Arrow bedrock -> agent (tool_use back) -->
+  <path d="M 700 205 C 620 235, 600 260, 520 300" stroke="#7c3aed" stroke-width="1.5" fill="none" marker-end="url(#arrow)" stroke-dasharray="4,3"/>
+
+  <!-- DynamoDB -->
+  <rect x="640" y="290" width="270" height="90" rx="10" fill="#1a0d2e" stroke="#a855f7" stroke-width="2"/>
+  <text x="775" y="322" text-anchor="middle" fill="#f5f3ff" font-size="14" font-weight="bold">Amazon DynamoDB</text>
+  <text x="775" y="342" text-anchor="middle" fill="#c4b5fd" font-size="11">MonarcaStoreOrders</text>
+  <text x="775" y="360" text-anchor="middle" fill="#7c3aed" font-size="11">get_order(order_id)</text>
+
+  <!-- Exchange rate API -->
+  <rect x="640" y="410" width="270" height="90" rx="10" fill="#1a0d2e" stroke="#a855f7" stroke-width="2"/>
+  <text x="775" y="440" text-anchor="middle" fill="#f5f3ff" font-size="14" font-weight="bold">open.er-api.com</text>
+  <text x="775" y="460" text-anchor="middle" fill="#c4b5fd" font-size="11">Free exchange rate API</text>
+  <text x="775" y="480" text-anchor="middle" fill="#7c3aed" font-size="11">get_exchange_rate(from, to)</text>
+
+  <!-- Arrows agent -> tools -->
+  <path d="M 520 320 C 580 320, 600 330, 640 335" stroke="#a855f7" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 520 340 C 580 380, 600 440, 640 455" stroke="#a855f7" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Setup script (external, run once) -->
+  <rect x="900" y="290" width="260" height="90" rx="10" fill="#0f0a1f" stroke="#4c1d95" stroke-width="1.5" stroke-dasharray="5,3" transform="translate(0,0)"/>
+  <text x="1030" y="322" text-anchor="middle" fill="#c4b5fd" font-size="13" font-weight="bold">setup_dynamodb.py</text>
+  <text x="1030" y="342" text-anchor="middle" fill="#8b7cb8" font-size="11">run once, outside chat loop</text>
+  <text x="1030" y="360" text-anchor="middle" fill="#8b7cb8" font-size="11">creates + seeds table</text>
+  <line x1="900" y1="335" x2="910" y2="335" stroke="#4c1d95" stroke-width="1.5"/>
+  <path d="M 910 335 C 900 330, 895 330, 890 330" stroke="none"/>
+  <line x1="775" y1="290" x2="900" y2="330" stroke="#4c1d95" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowDark)"/>
+
+  <!-- Legend -->
+  <text x="230" y="580" fill="#8b7cb8" font-size="11">— solid line: live request during chat</text>
+  <text x="230" y="600" fill="#8b7cb8" font-size="11">- - dashed line: response back / one-time setup</text>
+
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#a855f7"/>
+    </marker>
+    <marker id="arrowDark" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#4c1d95"/>
+    </marker>
+  </defs>
+</svg>
