@@ -1,5 +1,5 @@
 # shadow-agent 🤖⚔️
-> Amazon Bedrock + Claude demo built for **AgentCamp Lima**
+> Amazon Bedrock + Claude demo built for **Aws User Group Costa Rica**
 > From Rank E to Monarch: building autonomous agents on AWS
 
 ---

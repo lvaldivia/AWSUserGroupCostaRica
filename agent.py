@@ -9,14 +9,20 @@ REGION = "us-east-1"
 PROFILE = "bedrock-demo"
 MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 TABLE_NAME = "MonarcaStoreOrders"
-MAX_HISTORY_MESSAGES = 20
+MAX_HISTORY_MESSAGES = 20  # cap conversation history to avoid unbounded token growth
 
+# Load AWS credentials from the local "bedrock-demo" profile (mounted read-only in Docker)
 session = boto3.Session(profile_name=PROFILE)
+
+# Bedrock client with a short connect timeout and limited retries, so a network
+# hiccup fails fast instead of hanging during a live demo
 bedrock = session.client(
     "bedrock-runtime",
     region_name=REGION,
     config=Config(connect_timeout=5, read_timeout=30, retries={"max_attempts": 2}),
 )
+
+# DynamoDB resource + table handle used by the get_order tool
 dynamodb = session.resource("dynamodb", region_name=REGION)
 table = dynamodb.Table(TABLE_NAME)
 
@@ -36,6 +42,7 @@ Reglas:
 - Siempre ofrece ayuda adicional al final de tu respuesta.
 """
 
+# Tool definitions in Bedrock Converse API format (JSON Schema per tool input)
 TOOL_CONFIG = {
     "tools": [
         {
@@ -75,8 +82,16 @@ TOOL_CONFIG = {
     ]
 }
 
+# Friendly label per tool, shown to the user while the tool call is in flight
+TOOL_LOADING_MESSAGES = {
+    "get_order": "🔍 Buscando tu orden, espera un momento...",
+    "get_exchange_rate": "💱 Consultando el tipo de cambio, espera un momento...",
+}
+
 
 def _decimal_to_native(obj):
+    # DynamoDB returns numbers as Decimal; convert recursively to int/float
+    # so they can be safely JSON-serialized when sent back to the model
     if isinstance(obj, list):
         return [_decimal_to_native(v) for v in obj]
     if isinstance(obj, dict):
@@ -87,6 +102,7 @@ def _decimal_to_native(obj):
 
 
 def get_order(order_id: str) -> dict:
+    # Tool implementation: fetch a single order by its partition key
     try:
         resp = table.get_item(Key={"order_id": str(order_id)})
     except ClientError as e:
@@ -99,11 +115,13 @@ def get_order(order_id: str) -> dict:
 
 
 def get_exchange_rate(from_currency: str, to_currency: str) -> dict:
+    # Tool implementation: call a free, no-API-key exchange rate service
     from_currency = (from_currency or "").upper().strip()
     to_currency = (to_currency or "").upper().strip()
     url = f"https://open.er-api.com/v6/latest/{from_currency}"
 
     try:
+        # Short timeout so a slow external API doesn't stall the whole demo
         with urllib.request.urlopen(url, timeout=5) as resp:
             data = json.loads(resp.read())
     except Exception as e:
@@ -124,6 +142,7 @@ def get_exchange_rate(from_currency: str, to_currency: str) -> dict:
     }
 
 
+# Dispatch table: maps a tool name (as requested by the model) to the actual Python function
 TOOL_FUNCTIONS = {
     "get_order": lambda inp: get_order(inp.get("order_id", "")),
     "get_exchange_rate": lambda inp: get_exchange_rate(
@@ -133,16 +152,20 @@ TOOL_FUNCTIONS = {
 
 
 def _trim_history(history: list) -> None:
+    # Keep only the most recent messages once the conversation gets long
     if len(history) > MAX_HISTORY_MESSAGES:
         del history[: len(history) - MAX_HISTORY_MESSAGES]
 
 
 def chat(mensaje: str, history: list) -> str:
+    # Append the new user turn to the running conversation history
     history.append({"role": "user", "content": [{"text": mensaje}]})
 
-    # Loop hasta que el modelo termine de usar herramientas y devuelva texto final
+    # Loop until the model stops requesting tools and returns final text
     while True:
         try:
+            # Ask Claude (via Bedrock Converse) for the next step: either
+            # a text reply or a request to call one of the defined tools
             response = bedrock.converse(
                 modelId=MODEL_ID,
                 system=[{"text": SYSTEM_PROMPT}],
@@ -161,28 +184,37 @@ def chat(mensaje: str, history: list) -> str:
         except Exception as e:
             return f"⚠️ Error inesperado: {e}"
 
+        # Save the model's turn (text and/or tool_use blocks) into history
         output_message = response["output"]["message"]
         history.append(output_message)
         stop_reason = response["stopReason"]
 
         if stop_reason != "tool_use":
+            # Model is done: extract and return the final text blocks
             texts = [c["text"] for c in output_message["content"] if "text" in c]
             _trim_history(history)
             return "\n".join(texts).strip()
 
-        # El modelo pidió usar una o más herramientas
+        # Model requested one or more tool calls in this turn
         tool_results = []
         for block in output_message["content"]:
             if "toolUse" not in block:
-                continue
+                continue  # skip non-tool blocks (e.g. any accompanying text)
+
             tool_use = block["toolUse"]
             name = tool_use["name"]
             tool_input = tool_use.get("input", {})
             tool_use_id = tool_use["toolUseId"]
 
+            # Show a friendly "loading" message so the user knows something
+            # is happening while we hit DynamoDB or the exchange rate API
+            loading_msg = TOOL_LOADING_MESSAGES.get(name, "⏳ Procesando, espera un momento...")
+            print(f"\n{loading_msg}")
+
             func = TOOL_FUNCTIONS.get(name)
             result = func(tool_input) if func else {"error": f"Herramienta desconocida: {name}"}
 
+            # Package the tool's output back in the format Bedrock expects
             tool_results.append(
                 {
                     "toolResult": {
@@ -192,11 +224,13 @@ def chat(mensaje: str, history: list) -> str:
                 }
             )
 
+        # Feed all tool results back as a "user" turn and loop again so the
+        # model can incorporate them into its next response
         history.append({"role": "user", "content": tool_results})
-        # vuelve al loop para que el modelo continúe con el resultado de la herramienta
 
 
 def main():
+    # Simple CLI banner for the live demo
     print("=" * 50)
     print("  Shadow Agent — MonarcaStore Support")
     print("  Powered by Amazon Bedrock + Claude")
@@ -204,7 +238,7 @@ def main():
     print("=" * 50)
     print("Escribe 'salir' para terminar.\n")
 
-    history = []
+    history = []  # conversation state, persists across turns in this session
 
     while True:
         user_input = input("Tú: ").strip()
@@ -212,7 +246,7 @@ def main():
             print("Shadow Agent: ¡Hasta luego! Que la sombra te acompañe. 👋")
             break
         if not user_input:
-            continue
+            continue  # ignore empty input, re-prompt
         print("\nShadow Agent: ", end="", flush=True)
         response = chat(user_input, history)
         print(response)
